@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Колесо вопросов — АГМК</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { background: radial-gradient(1200px 700px at 50% -10%, #3b2a8f 0%, #151236 55%, #0b0a22 100%); min-height: 100vh; }
+  #wheel { will-change: transform; transform: rotate(0deg); }
+  .glow { filter: drop-shadow(0 0 28px rgba(139,92,246,.55)); }
+  @keyframes pop { from { opacity:0; transform: scale(.92) translateY(10px);} to { opacity:1; transform:none;} }
+  .pop { animation: pop .28s ease-out; }
+  .chip-used { opacity:.35; text-decoration: line-through; }
+</style>
+</head>
+<body class="text-white font-sans antialiased">
+<div class="max-w-6xl mx-auto px-4 py-6 flex flex-col items-center">
+  <header class="text-center mb-4">
+    <h1 class="text-3xl md:text-5xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-amber-300 via-pink-400 to-violet-400">Колесо вопросов</h1>
+    <p class="text-slate-300 mt-2">Презентация АГМК · Крутите колесо — выпадет имя и вопрос</p>
+  </header>
+
+  <div class="flex flex-col lg:flex-row items-center gap-8 w-full justify-center">
+    <!-- Колесо -->
+    <div class="relative glow" id="stage" style="width:min(92vw,600px);height:min(92vw,600px);">
+      <!-- указатель -->
+      <div class="absolute left-1/2 -top-1 z-20 -translate-x-1/2">
+        <svg width="54" height="64" viewBox="0 0 54 64"><path d="M27 62 L4 8 Q27 -6 50 8 Z" fill="#fbbf24" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="27" cy="16" r="5" fill="#7c3aed"/></svg>
+      </div>
+      <div class="absolute inset-0 rounded-full p-2 bg-gradient-to-br from-amber-300 via-pink-500 to-violet-600">
+        <div class="w-full h-full rounded-full bg-[#0b0a22] p-1.5">
+          <canvas id="wheel" class="w-full h-full rounded-full block"></canvas>
+        </div>
+      </div>
+      <!-- кнопка в центре -->
+      <button id="spinBtn" class="absolute z-10 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full w-24 h-24 md:w-28 md:h-28 font-extrabold text-lg md:text-xl text-slate-900 bg-gradient-to-br from-amber-300 to-orange-500 border-4 border-white shadow-xl hover:scale-105 active:scale-95 transition disabled:opacity-60 disabled:hover:scale-100">КРУТИТЬ</button>
+    </div>
+
+    <!-- Список -->
+    <aside class="w-full max-w-md bg-white/5 backdrop-blur rounded-2xl p-5 border border-white/10">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold text-lg">Участники</h2>
+        <span id="left" class="text-sm text-amber-300 font-semibold"></span>
+      </div>
+      <div id="chips" class="flex flex-wrap gap-2"></div>
+      <button id="resetBtn" class="mt-5 w-full py-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition font-semibold">Сбросить всё</button>
+    </aside>
+  </div>
+</div>
+
+<!-- Модальное окно -->
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+  <div class="pop w-full max-w-2xl rounded-3xl p-6 md:p-10 bg-gradient-to-br from-[#2a1f6b] to-[#14102f] border border-white/20 shadow-2xl text-center">
+    <div class="inline-block px-4 py-1 rounded-full bg-amber-400 text-slate-900 font-bold text-sm mb-4" id="qnum"></div>
+    <h3 id="winner" class="text-4xl md:text-6xl font-extrabold mb-6 bg-clip-text text-transparent bg-gradient-to-r from-amber-300 to-pink-400"></h3>
+    <p id="question" class="text-xl md:text-3xl font-semibold leading-snug text-white"></p>
+    <button id="closeBtn" class="mt-8 px-8 py-3 rounded-xl bg-gradient-to-r from-violet-500 to-pink-500 font-bold hover:scale-105 active:scale-95 transition">Закрыть</button>
+  </div>
+</div>
+
+<script>
+const NAMES = ["Диера","Хадича","Фарангиз","Гузель","Ирода","Асия","Зухра","Севинч","Мадина","Дилнура","Самина","Бехруз","Иброхим","Шахзод","Ринат","Мухаммад","Алиаббос","Мирон","Мансур"];
+const QUESTIONS = [
+ "Когда был основан АГМК и какие исторические этапы он прошёл?",
+ "Каков был объём промышленной продукции АГМК в 2025 году?",
+ "Из каких этапов состоит производственный цикл комбината?",
+ "Какие работы выполняет горный комплекс?",
+ "Каковы задачи обогащения руды?",
+ "Какие продукты получают на металлургическом этапе?",
+ "Какова основная продукция АГМК и где она применяется?",
+ "Каковы результаты производства меди в 2025 году?",
+ "В каких отраслях применяется медь?",
+ "Каковы итоги 2025 года по золоту и серебру?",
+ "Каковы показатели по цинку и полиметаллическим рудам?",
+ "Каким был экспорт АГМК в 2025 году?",
+ "Сколько инвестиций освоено в 2025 году и каковы их источники?",
+ "Какие крупные инвестиционные проекты реализуются?",
+ "Что сделано в 2025 году по программе локализации?",
+ "Какие результаты дали локализация и промышленная кооперация?",
+ "Какова роль АГМК в экономике Узбекистана?",
+ "Как финансовые результаты 2025 года соотносятся с 2024 годом?",
+ "Какова динамика чистой прибыли и каков вывод?"
+];
+
+const N = NAMES.length, SEG = 360 / N;
+const used = new Set();
+let rotation = 0, spinning = false;
+
+const canvas = document.getElementById('wheel');
+const ctx = canvas.getContext('2d');
+const spinBtn = document.getElementById('spinBtn');
+
+function draw() {
+  const size = canvas.getBoundingClientRect().width || 560;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = canvas.height = Math.round(size * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const c = size / 2, r = c - 2;
+  ctx.clearRect(0, 0, size, size);
+  for (let i = 0; i < N; i++) {
+    const a0 = (-90 + i * SEG) * Math.PI / 180, a1 = (-90 + (i + 1) * SEG) * Math.PI / 180;
+    ctx.beginPath(); ctx.moveTo(c, c); ctx.arc(c, c, r, a0, a1); ctx.closePath();
+    ctx.fillStyle = used.has(i) ? '#3a3858' : `hsl(${Math.round(i * 360 / N)},72%,52%)`;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2; ctx.stroke();
+    // текст
+    ctx.save();
+    ctx.translate(c, c);
+    ctx.rotate((a0 + a1) / 2);
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = used.has(i) ? '#8b89a8' : '#fff';
+    ctx.font = `700 ${Math.max(12, size * 0.04)}px system-ui, sans-serif`;
+    ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 3;
+    ctx.fillText(NAMES[i], r - 16, 0);
+    ctx.restore();
+  }
+}
+
+function renderChips() {
+  const box = document.getElementById('chips'); box.innerHTML = '';
+  NAMES.forEach((n, i) => {
+    const s = document.createElement('span');
+    s.className = 'px-3 py-1 rounded-full text-sm font-medium border border-white/15 ' + (used.has(i) ? 'chip-used bg-white/5' : 'bg-white/10');
+    s.textContent = n; box.appendChild(s);
+  });
+  document.getElementById('left').textContent = `Осталось: ${N - used.size} из ${N}`;
+  spinBtn.disabled = spinning || used.size === N;
+  spinBtn.textContent = used.size === N ? 'ГОТОВО' : 'КРУТИТЬ';
+}
+
+function spin() {
+  if (spinning || used.size === N) return;
+  const free = [...Array(N).keys()].filter(i => !used.has(i));
+  const pick = free[Math.floor(Math.random() * free.length)];
+  const jitter = (Math.random() - 0.5) * SEG * 0.7;
+  const center = (pick + 0.5) * SEG + jitter;
+  const delta = ((-center - rotation) % 360 + 360) % 360;
+  const target = rotation + 360 * 7 + delta;
+  spinning = true; renderChips();
+  const wheel = canvas;
+  wheel.style.transition = 'transform 6.5s cubic-bezier(.12,.62,.08,1)';
+  requestAnimationFrame(() => { wheel.style.transform = `rotate(${target}deg)`; });
+  let done = false;
+  const finish = () => {
+    if (done) return; done = true;
+    wheel.style.transition = 'none';
+    rotation = target % 360;
+    wheel.style.transform = `rotate(${rotation}deg)`;
+    spinning = false;
+    used.add(pick);
+    showModal(pick);
+  };
+  wheel.addEventListener('transitionend', finish, { once: true });
+  setTimeout(finish, 7000);
+}
+
+function showModal(i) {
+  document.getElementById('qnum').textContent = `Вопрос № ${i + 1}`;
+  document.getElementById('winner').textContent = NAMES[i];
+  document.getElementById('question').textContent = QUESTIONS[i];
+  const m = document.getElementById('modal'); m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeModal() {
+  const m = document.getElementById('modal'); m.classList.add('hidden'); m.classList.remove('flex');
+  draw(); renderChips();
+}
+
+spinBtn.addEventListener('click', spin);
+document.getElementById('closeBtn').addEventListener('click', closeModal);
+document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (spinning) return; used.clear(); draw(); renderChips();
+});
+window.addEventListener('resize', draw);
+draw(); renderChips();
+</script>
+</body>
+</html>
